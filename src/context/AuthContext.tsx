@@ -1,104 +1,125 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase, User, Payment, Ticket } from "@/lib/supabase";
 
-type User = {
-  id: string;
-  name: string;
-  email: string;
-  role: "user" | "admin";
-  payment?: {
-    status: "pending" | "confirmed" | "rejected";
-    receiptUrl?: string;
-  };
-  ticket?: {
-    tableType: "Standard" | "Premium" | "VIP";
-    tableNumber: string;
-    seatNumber: string;
-  };
+// Updated to match our Supabase schema
+type UserWithDetails = User & {
+  payment?: Payment;
+  ticket?: Ticket;
 };
 
 type AuthContextType = {
-  user: User | null;
+  user: UserWithDetails | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (name: string, email: string, password: string) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
   isAdmin: boolean;
   uploadReceipt: (receiptUrl: string) => Promise<void>;
-  getUsers: () => User[];
+  getUsers: () => Promise<UserWithDetails[]>;
   updatePaymentStatus: (userId: string, status: "confirmed" | "rejected") => Promise<void>;
   assignSeat: (userId: string, tableType: "Standard" | "Premium" | "VIP", tableNumber: string, seatNumber: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-// Mock data
-const mockUsers: User[] = [
-  {
-    id: "1",
-    name: "Admin User",
-    email: "admin@example.com",
-    role: "admin",
-  },
-  {
-    id: "2",
-    name: "Regular User",
-    email: "user@example.com",
-    role: "user",
-    payment: {
-      status: "pending"
-    }
-  },
-  {
-    id: "3",
-    name: "Premium User",
-    email: "premium@example.com",
-    role: "user",
-    payment: {
-      status: "confirmed",
-      receiptUrl: "https://example.com/receipt.jpg"
-    },
-    ticket: {
-      tableType: "Premium",
-      tableNumber: "P12",
-      seatNumber: "03"
-    }
-  }
-];
-
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<UserWithDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [users, setUsers] = useState<User[]>(mockUsers);
   const { toast } = useToast();
 
+  // Check if user is already authenticated
   useEffect(() => {
-    // Check if user is already logged in via localStorage
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    setIsLoading(false);
-  }, []);
+    const fetchUserData = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          // Get user details from auth
+          const { data: userData, error: userError } = await supabase.auth.getUser();
+          
+          if (userError) throw userError;
+          
+          if (userData && userData.user) {
+            // Fetch additional user info from our users table
+            const { data: userDetails, error: detailsError } = await supabase
+              .from('users')
+              .select('*')
+              .eq('id', userData.user.id)
+              .single();
+              
+            if (detailsError) throw detailsError;
+            
+            // Fetch payment info
+            const { data: paymentData, error: paymentError } = await supabase
+              .from('payments')
+              .select('*')
+              .eq('user_id', userData.user.id)
+              .maybeSingle();
+              
+            if (paymentError) throw paymentError;
+            
+            // Fetch ticket info
+            const { data: ticketData, error: ticketError } = await supabase
+              .from('tickets')
+              .select('*')
+              .eq('user_id', userData.user.id)
+              .maybeSingle();
+              
+            if (ticketError) throw ticketError;
+            
+            const userWithDetails: UserWithDetails = {
+              ...userDetails,
+              payment: paymentData || undefined,
+              ticket: ticketData || undefined
+            };
+            
+            setUser(userWithDetails);
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching user data:', error);
+        toast({
+          title: "Authentication error",
+          description: "Failed to retrieve user session",
+          variant: "destructive"
+        });
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchUserData();
+    
+    // Set up auth state change listener
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (event === 'SIGNED_IN' && session) {
+        // Refresh user data when signed in
+        fetchUserData();
+      } else if (event === 'SIGNED_OUT') {
+        setUser(null);
+      }
+    });
+    
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [toast]);
 
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
+      const { error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      });
       
-      const foundUser = users.find(u => u.email === email);
-      if (!foundUser) {
-        throw new Error("Invalid email or password");
-      }
+      if (error) throw error;
       
-      // In a real app, you would verify the password here
-      
-      setUser(foundUser);
-      localStorage.setItem("user", JSON.stringify(foundUser));
       toast({
         title: "Login successful",
-        description: `Welcome back, ${foundUser.name}!`,
+        description: "Welcome back!",
       });
     } catch (error) {
       console.error(error);
@@ -116,26 +137,42 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (name: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
-      if (users.some(u => u.email === email)) {
-        throw new Error("Email already in use");
-      }
-      
-      const newUser: User = {
-        id: (users.length + 1).toString(),
-        name,
+      // Sign up with Supabase Auth
+      const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
-        role: "user",
-        payment: {
-          status: "pending"
+        password,
+        options: {
+          data: {
+            name
+          }
         }
-      };
+      });
       
-      setUsers([...users, newUser]);
-      setUser(newUser);
-      localStorage.setItem("user", JSON.stringify(newUser));
+      if (authError) throw authError;
+      
+      if (authData.user) {
+        // Create user record in 'users' table
+        const { error: userError } = await supabase
+          .from('users')
+          .insert({
+            id: authData.user.id,
+            name,
+            email,
+            role: 'user'
+          });
+          
+        if (userError) throw userError;
+        
+        // Create initial payment record
+        const { error: paymentError } = await supabase
+          .from('payments')
+          .insert({
+            user_id: authData.user.id,
+            status: 'pending'
+          });
+          
+        if (paymentError) throw paymentError;
+      }
       
       toast({
         title: "Registration successful",
@@ -154,39 +191,58 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const logout = () => {
-    setUser(null);
-    localStorage.removeItem("user");
-    toast({
-      title: "Logged out",
-      description: "You have been logged out successfully.",
-    });
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) throw error;
+      
+      setUser(null);
+      
+      toast({
+        title: "Logged out",
+        description: "You have been logged out successfully.",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Logout failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+    }
   };
 
   const uploadReceipt = async (receiptUrl: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
-      
       if (!user) throw new Error("Not authenticated");
       
-      // Ensure we're using the exact type for payment.status
-      const updatedUser: User = {
+      // Update payment record in Supabase
+      const { error } = await supabase
+        .from('payments')
+        .update({
+          receipt_url: receiptUrl,
+          status: 'pending',
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', user.id);
+        
+      if (error) throw error;
+      
+      // Refresh user data
+      const { data: paymentData, error: paymentError } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', user.id)
+        .single();
+        
+      if (paymentError) throw paymentError;
+      
+      // Update local state
+      setUser({
         ...user,
-        payment: {
-          ...user.payment,
-          status: "pending" as const,
-          receiptUrl
-        }
-      };
-      
-      setUser(updatedUser);
-      localStorage.setItem("user", JSON.stringify(updatedUser));
-      
-      // Update in users array
-      const updatedUsers = users.map(u => u.id === user.id ? updatedUser : u);
-      setUsers(updatedUsers);
+        payment: paymentData
+      });
       
       toast({
         title: "Receipt uploaded",
@@ -205,38 +261,86 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const getUsers = () => {
-    return users;
+  const getUsers = async () => {
+    try {
+      if (!user || user.role !== 'admin') {
+        throw new Error("Unauthorized access");
+      }
+      
+      // Get all users with their payment and ticket info
+      const { data: users, error: usersError } = await supabase
+        .from('users')
+        .select('*');
+        
+      if (usersError) throw usersError;
+      
+      const usersWithDetails: UserWithDetails[] = [];
+      
+      // Fetch payment and ticket details for each user
+      for (const userData of users) {
+        const { data: paymentData } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('user_id', userData.id)
+          .maybeSingle();
+          
+        const { data: ticketData } = await supabase
+          .from('tickets')
+          .select('*')
+          .eq('user_id', userData.id)
+          .maybeSingle();
+          
+        usersWithDetails.push({
+          ...userData,
+          payment: paymentData || undefined,
+          ticket: ticketData || undefined
+        });
+      }
+      
+      return usersWithDetails;
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to fetch users",
+        variant: "destructive",
+      });
+      return [];
+    }
   };
 
   const updatePaymentStatus = async (userId: string, status: "confirmed" | "rejected") => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
+      if (!user || user.role !== 'admin') {
+        throw new Error("Unauthorized access");
+      }
       
-      const updatedUsers = users.map(u => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            payment: {
-              ...u.payment,
-              status
-            }
-          };
-        }
-        return u;
-      });
-      
-      setUsers(updatedUsers);
+      // Update payment status in Supabase
+      const { error } = await supabase
+        .from('payments')
+        .update({
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('user_id', userId);
+        
+      if (error) throw error;
       
       // If current user is the one being updated, update current user state too
-      if (user && user.id === userId) {
-        const updatedUser = updatedUsers.find(u => u.id === userId);
-        if (updatedUser) {
-          setUser(updatedUser);
-          localStorage.setItem("user", JSON.stringify(updatedUser));
-        }
+      if (user.id === userId) {
+        const { data: paymentData, error: paymentError } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+          
+        if (paymentError) throw paymentError;
+        
+        setUser({
+          ...user,
+          payment: paymentData
+        });
       }
       
       toast({
@@ -259,32 +363,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const assignSeat = async (userId: string, tableType: "Standard" | "Premium" | "VIP", tableNumber: string, seatNumber: string) => {
     setIsLoading(true);
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 800));
+      if (!user || user.role !== 'admin') {
+        throw new Error("Unauthorized access");
+      }
       
-      const updatedUsers = users.map(u => {
-        if (u.id === userId) {
-          return {
-            ...u,
-            ticket: {
-              tableType,
-              tableNumber,
-              seatNumber
-            }
-          };
-        }
-        return u;
-      });
+      // Check if this user already has a ticket
+      const { data: existingTicket, error: checkError } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('user_id', userId)
+        .maybeSingle();
+        
+      if (checkError) throw checkError;
       
-      setUsers(updatedUsers);
+      let error;
+      
+      if (existingTicket) {
+        // Update existing ticket
+        const { error: updateError } = await supabase
+          .from('tickets')
+          .update({
+            table_type: tableType,
+            table_number: tableNumber,
+            seat_number: seatNumber
+          })
+          .eq('user_id', userId);
+          
+        error = updateError;
+      } else {
+        // Create new ticket
+        const { error: insertError } = await supabase
+          .from('tickets')
+          .insert({
+            user_id: userId,
+            table_type: tableType,
+            table_number: tableNumber,
+            seat_number: seatNumber
+          });
+          
+        error = insertError;
+      }
+      
+      if (error) throw error;
       
       // If current user is the one being updated, update current user state too
-      if (user && user.id === userId) {
-        const updatedUser = updatedUsers.find(u => u.id === userId);
-        if (updatedUser) {
-          setUser(updatedUser);
-          localStorage.setItem("user", JSON.stringify(updatedUser));
-        }
+      if (user.id === userId) {
+        const { data: ticketData, error: ticketError } = await supabase
+          .from('tickets')
+          .select('*')
+          .eq('user_id', userId)
+          .single();
+          
+        if (ticketError) throw ticketError;
+        
+        setUser({
+          ...user,
+          ticket: ticketData
+        });
       }
       
       toast({
@@ -312,7 +447,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
-        isAdmin: user?.role === "admin",
+        isAdmin: user?.role === 'admin',
         uploadReceipt,
         getUsers,
         updatePaymentStatus,

@@ -1,353 +1,458 @@
 
-import React, { useState } from "react";
-import { Check, X, TicketIcon, Search, AlertCircle } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
-import { cn } from "@/lib/utils";
-import { useToast } from "@/hooks/use-toast";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { 
+  Check, 
+  X, 
+  Search, 
+  Filter, 
+  Eye, 
+  AlertTriangle,
+  CheckCircle 
+} from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { User } from "@/lib/supabase";
 
-interface AdminPanelProps {
-  className?: string;
-}
+type UserWithDetails = User & {
+  payment?: {
+    id: string;
+    user_id: string;
+    status: 'pending' | 'confirmed' | 'rejected';
+    receipt_url?: string;
+  };
+  ticket?: {
+    id: string;
+    user_id: string;
+    table_type: 'Standard' | 'Premium' | 'VIP';
+    table_number: string;
+    seat_number: string;
+  };
+};
 
-const AdminPanel: React.FC<AdminPanelProps> = ({ className }) => {
-  const { getUsers, updatePaymentStatus, assignSeat, isLoading } = useAuth();
-  const { toast } = useToast();
+const AdminPanel = () => {
+  const { getUsers, updatePaymentStatus, assignSeat } = useAuth();
+  const [users, setUsers] = useState<UserWithDetails[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [ticketId, setTicketId] = useState("");
-  const [scanResult, setScanResult] = useState<{ valid: boolean; message: string } | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserWithDetails | null>(null);
   const [tableType, setTableType] = useState<"Standard" | "Premium" | "VIP">("Standard");
   const [tableNumber, setTableNumber] = useState("");
   const [seatNumber, setSeatNumber] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("all");
 
-  const users = getUsers().filter(user => 
-    user.role === "user" && 
-    (searchTerm === "" || 
-     user.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-     user.email.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  useEffect(() => {
+    const fetchUsers = async () => {
+      setIsLoading(true);
+      try {
+        const fetchedUsers = await getUsers();
+        setUsers(fetchedUsers);
+      } catch (error) {
+        console.error("Error fetching users:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
 
-  const pendingPayments = users.filter(user => 
-    user.payment?.status === "pending" && user.payment?.receiptUrl
-  );
+    fetchUsers();
+  }, [getUsers]);
 
-  const handleConfirmPayment = async (userId: string) => {
+  const handlePaymentStatus = async (userId: string, status: "confirmed" | "rejected") => {
     try {
-      await updatePaymentStatus(userId, "confirmed");
+      await updatePaymentStatus(userId, status);
+      // Update local state
+      setUsers(users.map(user => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            payment: {
+              ...user.payment!,
+              status
+            }
+          };
+        }
+        return user;
+      }));
     } catch (error) {
-      console.error(error);
+      console.error("Error updating payment status:", error);
     }
   };
 
-  const handleRejectPayment = async (userId: string) => {
+  const handleAssignSeat = async (userId: string) => {
+    if (!tableNumber || !seatNumber) return;
+    
     try {
-      await updatePaymentStatus(userId, "rejected");
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const handleAssignSeat = async () => {
-    if (!selectedUserId || !tableNumber || !seatNumber) {
-      toast({
-        title: "Missing information",
-        description: "Please fill in all seat assignment fields",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      await assignSeat(selectedUserId, tableType, tableNumber, seatNumber);
+      await assignSeat(userId, tableType, tableNumber, seatNumber);
+      // Update local state
+      setUsers(users.map(user => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            ticket: {
+              id: user.ticket?.id || "",
+              user_id: userId,
+              table_type: tableType,
+              table_number: tableNumber,
+              seat_number: seatNumber
+            }
+          };
+        }
+        return user;
+      }));
+      
+      // Reset form
+      setSelectedUser(null);
+      setTableType("Standard");
       setTableNumber("");
       setSeatNumber("");
-      setSelectedUserId(null);
     } catch (error) {
-      console.error(error);
+      console.error("Error assigning seat:", error);
     }
   };
 
-  const handleScanTicket = () => {
-    // In a real app, this would use a QR code scanner
-    // For this demo, we'll just check if the ticketId exists
-    const ticketParts = ticketId.split("-");
-    if (ticketParts.length >= 2) {
-      const userId = ticketParts[0];
-      const user = getUsers().find(u => u.id === userId);
-      
-      if (user && user.ticket) {
-        setScanResult({
-          valid: true,
-          message: `Valid ticket for ${user.name}. ${user.ticket.tableType} - Table ${user.ticket.tableNumber}, Seat ${user.ticket.seatNumber}`
-        });
-      } else {
-        setScanResult({
-          valid: false,
-          message: "Invalid ticket. No matching record found."
-        });
-      }
-    } else {
-      setScanResult({
-        valid: false,
-        message: "Invalid ticket format. Please try again."
-      });
-    }
+  const filteredUsers = users.filter(user => {
+    const matchesSearch = 
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase());
     
-    setTimeout(() => {
-      setScanResult(null);
-      setTicketId("");
-    }, 5000);
-  };
+    const matchesFilter = 
+      filter === "all" || 
+      (user.payment?.status === filter);
+    
+    return matchesSearch && matchesFilter;
+  });
 
   return (
-    <div className={cn("space-y-8", className)}>
-      <div className="flex flex-col">
-        <h2 className="text-3xl font-bold tracking-tight">Admin Panel</h2>
+    <div className="space-y-8">
+      <div>
+        <h2 className="text-3xl font-bold tracking-tight mb-2">Admin Panel</h2>
         <p className="text-muted-foreground">
-          Manage event registrations, payments, and seating
+          Manage user registrations, payments, and seat assignments
         </p>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search by name or email..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-        />
-      </div>
-
       <Tabs defaultValue="payments" className="w-full">
-        <TabsList className="mb-8">
-          <TabsTrigger value="payments">
-            Payments
-            {pendingPayments.length > 0 && (
-              <span className="ml-2 px-2 py-0.5 text-xs rounded-full bg-primary text-primary-foreground">
-                {pendingPayments.length}
-              </span>
-            )}
-          </TabsTrigger>
+        <TabsList className="mb-6">
+          <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="seating">Seating</TabsTrigger>
           <TabsTrigger value="scanner">Ticket Scanner</TabsTrigger>
         </TabsList>
-        
-        <TabsContent value="payments" className="space-y-6">
-          {pendingPayments.length === 0 ? (
-            <div className="text-center py-12">
-              <div className="mx-auto w-12 h-12 rounded-full bg-muted flex items-center justify-center mb-4">
-                <Check className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-medium mb-2">All caught up!</h3>
-              <p className="text-muted-foreground">No pending payment receipts to review.</p>
+
+        <TabsContent value="payments" className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-4">
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users..."
+                className="pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex gap-2 items-center w-full md:w-auto">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={filter}
+                onValueChange={(value) => setFilter(value as any)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All payments</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="confirmed">Confirmed</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="py-8 flex justify-center items-center">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
             </div>
           ) : (
-            <div className="space-y-6">
-              {pendingPayments.map((user) => (
-                <div
-                  key={user.id}
-                  className="p-4 border border-border rounded-lg bg-card animate-fade-in"
-                >
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div>
-                      <h4 className="font-medium">{user.name}</h4>
-                      <p className="text-sm text-muted-foreground">{user.email}</p>
-                    </div>
-                    
-                    <div className="flex items-center gap-3">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="text-muted-foreground"
-                        onClick={() => {
-                          window.open(user.payment?.receiptUrl, "_blank");
-                        }}
-                      >
-                        View Receipt
-                      </Button>
-                      
-                      <Button
-                        variant="destructive"
-                        size="sm"
-                        onClick={() => handleRejectPayment(user.id)}
-                        disabled={isLoading}
-                      >
-                        <X className="h-4 w-4 mr-1" />
-                        Reject
-                      </Button>
-                      
-                      <Button
-                        size="sm"
-                        onClick={() => handleConfirmPayment(user.id)}
-                        disabled={isLoading}
-                      >
-                        <Check className="h-4 w-4 mr-1" />
-                        Confirm
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              ))}
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Payment Status</TableHead>
+                    <TableHead>Receipt</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsers.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                        No users found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsers.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{user.name}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {user.payment ? (
+                            <Badge 
+                              variant={
+                                user.payment.status === "confirmed" 
+                                  ? "default" 
+                                  : user.payment.status === "rejected"
+                                  ? "destructive"
+                                  : "outline"
+                              }
+                            >
+                              {user.payment.status}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">No payment</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {user.payment?.receipt_url ? (
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              className="flex items-center gap-1"
+                              onClick={() => window.open(user.payment.receipt_url, "_blank")}
+                            >
+                              <Eye className="h-4 w-4" />
+                              <span>View</span>
+                            </Button>
+                          ) : (
+                            <span className="text-muted-foreground text-sm">Not uploaded</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {user.payment?.status === "pending" && user.payment.receipt_url && (
+                            <div className="flex justify-end gap-2">
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-green-600 border-green-600 hover:bg-green-50"
+                                onClick={() => handlePaymentStatus(user.id, "confirmed")}
+                              >
+                                <Check className="h-4 w-4 mr-1" />
+                                Confirm
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="outline"
+                                className="text-red-600 border-red-600 hover:bg-red-50"
+                                onClick={() => handlePaymentStatus(user.id, "rejected")}
+                              >
+                                <X className="h-4 w-4 mr-1" />
+                                Reject
+                              </Button>
+                            </div>
+                          )}
+                          {user.payment?.status === "confirmed" && (
+                            <span className="text-green-600 flex items-center justify-end">
+                              <CheckCircle className="h-4 w-4 mr-1" />
+                              Confirmed
+                            </span>
+                          )}
+                          {user.payment?.status === "rejected" && (
+                            <span className="text-red-600 flex items-center justify-end">
+                              <AlertTriangle className="h-4 w-4 mr-1" />
+                              Rejected
+                            </span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
             </div>
           )}
         </TabsContent>
-        
+
         <TabsContent value="seating" className="space-y-6">
           <div className="grid md:grid-cols-2 gap-8">
             <div className="space-y-4">
-              <h3 className="text-lg font-medium">Assign Seats</h3>
+              <h3 className="text-lg font-medium">Users with Confirmed Payments</h3>
               
-              <div className="space-y-4 p-4 border border-border rounded-lg">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Select User</label>
-                  <select
-                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    value={selectedUserId || ""}
-                    onChange={(e) => setSelectedUserId(e.target.value)}
-                  >
-                    <option value="">Select a user</option>
-                    {users
-                      .filter(user => user.payment?.status === "confirmed")
-                      .map(user => (
-                        <option key={user.id} value={user.id}>
-                          {user.name} ({user.email})
-                        </option>
-                      ))}
-                  </select>
-                </div>
-                
-                <div className="space-y-2">
-                  <label className="text-sm font-medium">Table Type</label>
-                  <select
-                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    value={tableType}
-                    onChange={(e) => setTableType(e.target.value as any)}
-                  >
-                    <option value="Standard">Standard</option>
-                    <option value="Premium">Premium</option>
-                    <option value="VIP">VIP</option>
-                  </select>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Table Number</label>
-                    <Input
-                      placeholder="e.g. A1"
-                      value={tableNumber}
-                      onChange={(e) => setTableNumber(e.target.value)}
-                    />
-                  </div>
-                  
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium">Seat Number</label>
-                    <Input
-                      placeholder="e.g. 05"
-                      value={seatNumber}
-                      onChange={(e) => setSeatNumber(e.target.value)}
-                    />
-                  </div>
-                </div>
-                
-                <Button
-                  className="w-full"
-                  onClick={handleAssignSeat}
-                  disabled={!selectedUserId || !tableNumber || !seatNumber || isLoading}
-                >
-                  {isLoading ? "Assigning..." : "Assign Seat"}
-                </Button>
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-medium mb-4">Assigned Seats</h3>
-              {users.filter(user => user.ticket).length === 0 ? (
-                <div className="text-center py-8 border border-border rounded-lg">
-                  <TicketIcon className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-                  <p className="text-muted-foreground">No seats assigned yet</p>
+              {isLoading ? (
+                <div className="py-8 flex justify-center items-center">
+                  <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
                 </div>
               ) : (
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                  {users
-                    .filter(user => user.ticket)
-                    .map(user => (
-                      <div
-                        key={user.id}
-                        className="p-3 border border-border rounded-lg bg-card"
+                <div className="rounded-md border">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>User</TableHead>
+                        <TableHead>Seat Status</TableHead>
+                        <TableHead className="text-right">Action</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers
+                        .filter(user => user.payment?.status === "confirmed")
+                        .length === 0 ? (
+                        <TableRow>
+                          <TableCell colSpan={3} className="text-center py-8 text-muted-foreground">
+                            No users with confirmed payments
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        filteredUsers
+                          .filter(user => user.payment?.status === "confirmed")
+                          .map((user) => (
+                            <TableRow key={user.id}>
+                              <TableCell>
+                                <div>
+                                  <p className="font-medium">{user.name}</p>
+                                  <p className="text-sm text-muted-foreground">{user.email}</p>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {user.ticket ? (
+                                  <div>
+                                    <Badge className="mb-1">
+                                      {user.ticket.table_type}
+                                    </Badge>
+                                    <p className="text-sm">
+                                      Table {user.ticket.table_number}, 
+                                      Seat {user.ticket.seat_number}
+                                    </p>
+                                  </div>
+                                ) : (
+                                  <Badge variant="outline">Not assigned</Badge>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  size="sm"
+                                  variant={user.ticket ? "outline" : "default"}
+                                  onClick={() => setSelectedUser(user)}
+                                >
+                                  {user.ticket ? "Reassign" : "Assign Seat"}
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
+            
+            <div className="space-y-4">
+              <h3 className="text-lg font-medium">Assign Seat</h3>
+              
+              {!selectedUser ? (
+                <div className="rounded-md border p-8 text-center">
+                  <p className="text-muted-foreground">
+                    Select a user from the list to assign a seat
+                  </p>
+                </div>
+              ) : (
+                <div className="rounded-md border p-6 space-y-4">
+                  <div>
+                    <p className="font-medium">{selectedUser.name}</p>
+                    <p className="text-sm text-muted-foreground">{selectedUser.email}</p>
+                  </div>
+                  
+                  <div className="space-y-4 pt-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium">Table Type</label>
+                      <Select 
+                        value={tableType} 
+                        onValueChange={(value) => setTableType(value as "Standard" | "Premium" | "VIP")}
                       >
-                        <div className="flex justify-between items-start">
-                          <div>
-                            <h4 className="font-medium">{user.name}</h4>
-                            <p className="text-sm text-muted-foreground">{user.email}</p>
-                          </div>
-                          <div className="text-right">
-                            <div className="text-sm font-medium">{user.ticket?.tableType}</div>
-                            <div className="text-xs text-muted-foreground">
-                              Table {user.ticket?.tableNumber}, Seat {user.ticket?.seatNumber}
-                            </div>
-                          </div>
-                        </div>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select table type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Standard">Standard</SelectItem>
+                          <SelectItem value="Premium">Premium</SelectItem>
+                          <SelectItem value="VIP">VIP</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Table Number</label>
+                        <Input
+                          value={tableNumber}
+                          onChange={(e) => setTableNumber(e.target.value)}
+                          placeholder="e.g. A1"
+                        />
                       </div>
-                    ))}
+                      
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium">Seat Number</label>
+                        <Input
+                          value={seatNumber}
+                          onChange={(e) => setSeatNumber(e.target.value)}
+                          placeholder="e.g. 01"
+                        />
+                      </div>
+                    </div>
+                    
+                    <div className="flex justify-end gap-2 pt-2">
+                      <Button
+                        variant="outline"
+                        onClick={() => setSelectedUser(null)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={() => handleAssignSeat(selectedUser.id)}
+                        disabled={!tableNumber || !seatNumber}
+                      >
+                        {selectedUser.ticket ? "Update Seat" : "Assign Seat"}
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
           </div>
         </TabsContent>
-        
-        <TabsContent value="scanner">
-          <div className="max-w-md mx-auto text-center">
-            <div className="mb-8">
-              <div className="mx-auto w-16 h-16 rounded-full bg-muted flex items-center justify-center mb-4">
-                <TicketIcon className="h-8 w-8 text-muted-foreground" />
-              </div>
-              <h3 className="text-xl font-medium mb-2">Ticket Scanner</h3>
-              <p className="text-muted-foreground mb-6">
-                Scan attendee QR codes or enter the ticket ID manually
-              </p>
-              
-              <div className="flex gap-2">
-                <Input
-                  placeholder="Enter ticket ID (e.g. 1-A5)"
-                  value={ticketId}
-                  onChange={(e) => setTicketId(e.target.value)}
-                />
-                <Button onClick={handleScanTicket} disabled={!ticketId}>
-                  Verify
-                </Button>
-              </div>
-              
-              {scanResult && (
-                <div className={cn(
-                  "mt-6 p-4 rounded-lg animate-fade-in",
-                  scanResult.valid 
-                    ? "bg-green-500/10 text-green-700" 
-                    : "bg-red-500/10 text-red-700"
-                )}>
-                  <div className="flex items-center gap-2 mb-2">
-                    {scanResult.valid ? (
-                      <Check className="h-5 w-5" />
-                    ) : (
-                      <AlertCircle className="h-5 w-5" />
-                    )}
-                    <span className="font-medium">
-                      {scanResult.valid ? "Valid Ticket" : "Invalid Ticket"}
-                    </span>
-                  </div>
-                  <p>{scanResult.message}</p>
-                </div>
-              )}
-            </div>
-            
-            <div className="border-t border-border pt-6">
-              <p className="text-sm text-muted-foreground">
-                In a real app, this would use your device's camera to scan the QR code.
-                For this demo, please enter the ticket ID manually in the format: [USER_ID]-[TABLE_NO]
-              </p>
-            </div>
+
+        <TabsContent value="scanner" className="space-y-4">
+          <div className="p-8 border rounded-md text-center space-y-4">
+            <h3 className="text-lg font-medium">QR Code Scanner</h3>
+            <p className="text-muted-foreground">
+              Use this feature at the event venue to scan and verify tickets.
+            </p>
+            <Button className="mt-4">
+              Open Scanner
+            </Button>
+            <p className="text-xs text-muted-foreground mt-4">
+              Note: You need to allow camera access to use the scanner
+            </p>
           </div>
         </TabsContent>
       </Tabs>

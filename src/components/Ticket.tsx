@@ -1,148 +1,178 @@
 
 import React, { useRef } from "react";
-import { Printer, Calendar, Clock, MapPin, QrCode } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
+import { Button } from "@/components/ui/button";
+import { QrCode, Download, Printer } from "lucide-react";
+import QRCode from "qrcode.react";
+import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 
-interface TicketProps {
-  className?: string;
-}
-
-const Ticket: React.FC<TicketProps> = ({ className }) => {
+const Ticket = () => {
   const { user } = useAuth();
+  const { toast } = useToast();
   const ticketRef = useRef<HTMLDivElement>(null);
 
-  const generateQRCode = () => {
-    // This would normally generate a real QR code with the ticket details
-    // For this demo, we'll just use a placeholder image
-    return `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${user?.id}-${user?.ticket?.tableType}-${user?.ticket?.tableNumber}-${user?.ticket?.seatNumber}`;
-  };
-
-  const printTicket = () => {
-    if (ticketRef.current) {
-      const printContent = ticketRef.current.innerHTML;
-      const originalContent = document.body.innerHTML;
-      
-      document.body.innerHTML = `
-        <div style="padding: 20px;">
-          ${printContent}
-        </div>
-      `;
-      
-      window.print();
-      document.body.innerHTML = originalContent;
-      
-      // Re-initialize any event listeners that were removed when the DOM was replaced
-      // For most React apps, this means re-rendering the app
-      window.location.reload();
-    }
-  };
-
-  if (!user?.ticket) {
+  if (!user?.ticket || user.payment?.status !== "confirmed") {
     return (
-      <div className={cn("p-6 rounded-xl bg-muted/50 text-center", className)}>
-        <h3 className="text-lg font-semibold mb-2">No Ticket Available</h3>
-        <p className="text-sm text-muted-foreground">
-          Your payment needs to be confirmed and a seat assigned before you can access your ticket.
+      <div className="flex flex-col items-center justify-center py-12 text-center">
+        <div className="bg-muted/40 p-6 rounded-xl mb-4">
+          <QrCode className="h-12 w-12 text-muted-foreground mx-auto" />
+        </div>
+        <h3 className="text-lg font-medium mb-2">No Ticket Available</h3>
+        <p className="text-muted-foreground">
+          {!user.payment?.status
+            ? "Please complete your payment first."
+            : user.payment.status === "pending"
+            ? "Your payment is pending confirmation."
+            : user.payment.status === "rejected"
+            ? "Your payment was rejected. Please contact support."
+            : "Waiting for seat assignment."}
         </p>
       </div>
     );
   }
 
+  const handlePrint = () => {
+    const printContents = ticketRef.current?.innerHTML;
+    const originalContents = document.body.innerHTML;
+
+    if (printContents) {
+      document.body.innerHTML = `
+        <html>
+          <head>
+            <title>Event Ticket</title>
+            <style>
+              body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; }
+              .ticket-container { max-width: 800px; margin: 0 auto; }
+              .ticket { border: 2px dashed #ccc; padding: 24px; border-radius: 12px; }
+              .header { text-align: center; margin-bottom: 24px; }
+              .details { display: flex; justify-content: space-between; }
+              .qr-code { text-align: center; margin-top: 24px; }
+            </style>
+          </head>
+          <body>
+            <div class="ticket-container">
+              ${printContents}
+            </div>
+          </body>
+        </html>
+      `;
+      window.print();
+      document.body.innerHTML = originalContents;
+    }
+  };
+
+  const handleDownload = () => {
+    const canvas = document.getElementById("ticket-qrcode") as HTMLCanvasElement;
+    if (canvas) {
+      const pngUrl = canvas
+        .toDataURL("image/png")
+        .replace("image/png", "image/octet-stream");
+      const downloadLink = document.createElement("a");
+      downloadLink.href = pngUrl;
+      downloadLink.download = `event-ticket-${user.id}.png`;
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+      
+      toast({
+        title: "QR Code Downloaded",
+        description: "Your ticket QR code has been downloaded successfully.",
+      });
+    }
+  };
+
+  // Ticket data to encode in QR code
+  const ticketData = JSON.stringify({
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    table: user.ticket.table_number,
+    seat: user.ticket.seat_number,
+    type: user.ticket.table_type,
+  });
+
   return (
-    <div className={cn("animate-fade-in", className)}>
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-lg font-semibold">Your Ticket</h3>
-        <Button 
-          variant="outline" 
-          size="sm" 
-          onClick={printTicket}
-          className="gap-1"
-        >
-          <Printer className="h-4 w-4" />
-          Print
-        </Button>
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <h3 className="text-xl font-semibold">Your Ticket</h3>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleDownload}>
+            <Download className="h-4 w-4 mr-2" />
+            Download QR
+          </Button>
+          <Button size="sm" onClick={handlePrint}>
+            <Printer className="h-4 w-4 mr-2" />
+            Print Ticket
+          </Button>
+        </div>
       </div>
 
-      <div
-        ref={ticketRef}
-        className="relative overflow-hidden border border-border rounded-xl"
-      >
-        {/* Ticket Header */}
-        <div className="bg-primary text-primary-foreground p-4">
-          <div className="text-xs uppercase tracking-wide mb-1">Gala Dinner Event</div>
-          <h4 className="text-xl font-bold">Annual Evening Gala 2023</h4>
+      <div ref={ticketRef} className={cn(
+        "border-2 border-dashed border-border rounded-xl p-6",
+        "animate-fade-in"
+      )}>
+        <div className="text-center mb-6">
+          <h2 className="text-2xl font-bold mb-1">EventRegistry</h2>
+          <p className="text-muted-foreground">Annual Tech Conference 2023</p>
         </div>
 
-        {/* Ticket Body */}
-        <div className="grid md:grid-cols-3 gap-4 p-4 bg-card">
-          {/* Attendee Details */}
-          <div className="md:col-span-2 space-y-4">
+        <div className="grid md:grid-cols-2 gap-8">
+          <div className="space-y-4">
             <div>
-              <div className="text-xs text-muted-foreground">Attendee</div>
-              <div className="font-semibold">{user.name}</div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-1">Attendee</h4>
+              <p className="text-xl font-semibold">{user.name}</p>
+              <p className="text-sm">{user.email}</p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <div className="text-xs text-muted-foreground">Table Type</div>
-                <div className="font-semibold">{user.ticket.tableType}</div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">Table Type</h4>
+                <p className="font-semibold">{user.ticket.table_type}</p>
               </div>
               <div>
-                <div className="text-xs text-muted-foreground">Table Number</div>
-                <div className="font-semibold">{user.ticket.tableNumber}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Seat Number</div>
-                <div className="font-semibold">{user.ticket.seatNumber}</div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Ticket ID</div>
-                <div className="font-semibold">{user.id}-{user.ticket.tableNumber}</div>
+                <h4 className="text-sm font-medium text-muted-foreground mb-1">Table</h4>
+                <p className="font-semibold">{user.ticket.table_number}</p>
               </div>
             </div>
 
-            <div className="space-y-2 pt-2">
-              <div className="flex items-center gap-2 text-sm">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <span>December 15, 2023</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>7:00 PM - 11:00 PM</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm">
-                <MapPin className="h-4 w-4 text-muted-foreground" />
-                <span>Grand Hotel, 123 Event St, New York</span>
-              </div>
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-1">Seat Number</h4>
+              <p className="font-semibold">{user.ticket.seat_number}</p>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-1">Event Date</h4>
+              <p className="font-semibold">June 15, 2023 - 9:00 AM</p>
+            </div>
+
+            <div>
+              <h4 className="text-sm font-medium text-muted-foreground mb-1">Venue</h4>
+              <p className="font-semibold">Tech Conference Center</p>
+              <p className="text-sm">123 Innovation Blvd, San Francisco, CA</p>
             </div>
           </div>
 
-          {/* QR Code */}
           <div className="flex flex-col items-center justify-center">
-            <div className="bg-white p-2 rounded-md">
-              <img
-                src={generateQRCode()}
-                alt="Ticket QR Code"
-                className="w-24 h-24 md:w-32 md:h-32 object-contain"
+            <div className="bg-white p-4 rounded-lg shadow-sm mb-4">
+              <QRCode
+                id="ticket-qrcode"
+                value={ticketData}
+                size={180}
+                level="H"
+                includeMargin={true}
               />
             </div>
-            <div className="text-xs text-center mt-2 flex items-center gap-1 text-muted-foreground">
-              <QrCode className="h-3 w-3" />
-              <span>Scan at entry</span>
-            </div>
+            <p className="text-center text-sm text-muted-foreground">
+              Scan this code at the event entrance
+            </p>
           </div>
         </div>
 
-        {/* Ticket Footer */}
-        <div className="bg-muted p-3 text-xs text-center text-muted-foreground">
-          Please bring this ticket and a valid ID to the event for entry. This ticket is non-transferable.
+        <div className="border-t border-border mt-6 pt-6 text-center text-sm text-muted-foreground">
+          <p>This ticket is non-transferable and must be presented upon entry.</p>
+          <p className="mt-1">Ticket ID: {user.id}</p>
         </div>
-
-        {/* Decorative elements */}
-        <div className="absolute -top-12 -right-12 w-24 h-24 bg-primary/10 rounded-full"></div>
-        <div className="absolute -bottom-12 -left-12 w-24 h-24 bg-primary/10 rounded-full"></div>
       </div>
     </div>
   );

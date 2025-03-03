@@ -15,7 +15,11 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
   const { user } = useAuth();
 
   if (!user) {
-    return <div>Loading...</div>;
+    return (
+      <div className="flex justify-center items-center h-[50vh]">
+        <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+      </div>
+    );
   }
 
   return (
@@ -59,12 +63,12 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                   <div>
                     <div className="font-medium">Payment Submitted</div>
                     <div className="text-sm text-muted-foreground">
-                      {user.payment?.receiptUrl ? "Receipt uploaded" : "Upload your payment receipt"}
+                      {user.payment?.receipt_url ? "Receipt uploaded" : "Upload your payment receipt"}
                     </div>
                   </div>
                 </div>
                 <div>
-                  {user.payment?.receiptUrl ? (
+                  {user.payment?.receipt_url ? (
                     <div className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-500">
                       Completed
                     </div>
@@ -100,6 +104,10 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                     <div className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-500">
                       Confirmed
                     </div>
+                  ) : user.payment?.status === "rejected" ? (
+                    <div className="text-xs px-2 py-1 rounded-full bg-red-500/10 text-red-500">
+                      Rejected
+                    </div>
                   ) : (
                     <div className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-500">
                       Pending
@@ -122,7 +130,7 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                     <div className="font-medium">Seat Assignment</div>
                     <div className="text-sm text-muted-foreground">
                       {user.ticket
-                        ? `${user.ticket.tableType} - Table ${user.ticket.tableNumber}, Seat ${user.ticket.seatNumber}`
+                        ? `${user.ticket.table_type} - Table ${user.ticket.table_number}, Seat ${user.ticket.seat_number}`
                         : "Waiting for seat assignment"}
                     </div>
                   </div>

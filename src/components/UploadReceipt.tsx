@@ -4,6 +4,7 @@ import { Upload, X, Image as ImageIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/context/AuthContext";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabase";
 
 interface UploadReceiptProps {
   className?: string;
@@ -12,8 +13,12 @@ interface UploadReceiptProps {
 const UploadReceipt: React.FC<UploadReceiptProps> = ({ className }) => {
   const { user, uploadReceipt, isLoading } = useAuth();
   const [receiptFile, setReceiptFile] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(user?.payment?.receiptUrl || null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(
+    user?.payment?.receipt_url || null
+  );
   const [isDragging, setIsDragging] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isUploading, setIsUploading] = useState(false);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -46,25 +51,59 @@ const UploadReceipt: React.FC<UploadReceiptProps> = ({ className }) => {
 
   const removeFile = () => {
     setReceiptFile(null);
-    if (previewUrl) {
+    if (previewUrl && !previewUrl.includes("supabase.in")) {
       URL.revokeObjectURL(previewUrl);
     }
-    setPreviewUrl(user?.payment?.receiptUrl || null);
+    setPreviewUrl(user?.payment?.receipt_url || null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (receiptFile && !isLoading) {
-      // In a real app, you would upload the file to a server and get a URL back
-      // For this demo, we'll use a fake URL
-      await uploadReceipt(previewUrl || "https://example.com/receipt.jpg");
-      // Reset the form
+    if (!receiptFile || !user || isLoading) return;
+
+    try {
+      setIsUploading(true);
+      
+      // Generate a unique filename
+      const fileExt = receiptFile.name.split('.').pop();
+      const fileName = `${user.id}-${Math.random().toString(36).substring(2)}.${fileExt}`;
+      const filePath = `receipts/${fileName}`;
+      
+      // Upload file to Supabase Storage
+      const { data, error } = await supabase.storage
+        .from('event-receipts')
+        .upload(filePath, receiptFile, {
+          cacheControl: '3600',
+          upsert: true,
+          onUploadProgress: (progress) => {
+            const percentage = Math.round((progress.loaded / progress.total) * 100);
+            setUploadProgress(percentage);
+          },
+        });
+        
+      if (error) throw error;
+      
+      // Get public URL for the uploaded file
+      const { data: publicUrlData } = supabase.storage
+        .from('event-receipts')
+        .getPublicUrl(filePath);
+        
+      // Update payment with receipt URL
+      await uploadReceipt(publicUrlData.publicUrl);
+      
+      // Reset file input
       setReceiptFile(null);
+      setUploadProgress(0);
+      
+    } catch (error) {
+      console.error('Error uploading receipt:', error);
+    } finally {
+      setIsUploading(false);
     }
   };
 
-  const isReceiptSubmitted = !!user?.payment?.receiptUrl;
-  const isPending = user?.payment?.status === "pending";
+  const isReceiptSubmitted = !!user?.payment?.receipt_url;
+  const isPending = user?.payment?.status === 'pending';
 
   return (
     <div className={cn("animate-fade-in", className)}>
@@ -124,15 +163,27 @@ const UploadReceipt: React.FC<UploadReceiptProps> = ({ className }) => {
           </div>
         ) : (
           <div className="relative rounded-xl overflow-hidden border border-border">
-            {previewUrl.includes("http") ? (
-              <img
-                src={previewUrl}
-                alt="Payment Receipt"
-                className="w-full h-[300px] object-cover"
-              />
-            ) : (
-              <div className="flex items-center justify-center h-[300px] bg-muted">
-                <ImageIcon className="h-16 w-16 text-muted-foreground/50" />
+            <img
+              src={previewUrl}
+              alt="Payment Receipt"
+              className="w-full h-[300px] object-cover"
+              onError={(e) => {
+                const target = e.target as HTMLImageElement;
+                target.src = '/placeholder.svg';
+              }}
+            />
+            
+            {uploadProgress > 0 && uploadProgress < 100 && (
+              <div className="absolute bottom-0 left-0 right-0 bg-black/50 text-white p-2">
+                <div className="h-2 bg-gray-700 rounded-full">
+                  <div 
+                    className="h-full bg-primary rounded-full" 
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+                <div className="text-xs text-center mt-1">
+                  Uploading: {uploadProgress}%
+                </div>
               </div>
             )}
           </div>
@@ -141,9 +192,9 @@ const UploadReceipt: React.FC<UploadReceiptProps> = ({ className }) => {
         <div className="mt-4 flex justify-end">
           <Button
             type="submit"
-            disabled={!receiptFile || isLoading || isReceiptSubmitted}
+            disabled={!receiptFile || isLoading || isUploading || isReceiptSubmitted}
           >
-            {isLoading ? (
+            {isLoading || isUploading ? (
               <span className="flex items-center justify-center">
                 <svg
                   className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
@@ -165,7 +216,7 @@ const UploadReceipt: React.FC<UploadReceiptProps> = ({ className }) => {
                     d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
                   ></path>
                 </svg>
-                Uploading...
+                {isUploading ? `Uploading ${uploadProgress}%` : "Processing..."}
               </span>
             ) : isReceiptSubmitted ? (
               "Receipt Submitted"

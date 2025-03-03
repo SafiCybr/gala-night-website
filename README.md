@@ -1,69 +1,103 @@
-# Welcome to your Lovable project
 
-## Project info
+# Event Registration System
 
-**URL**: https://lovable.dev/projects/124c014c-fb1d-4a91-b6e7-2ee0ce5d17f5
+This is a modern event registration system built with React, TypeScript, and Supabase. The application allows users to register for events, make payments, and receive tickets.
 
-## How can I edit this code?
+## Features
 
-There are several ways of editing your application.
+- User authentication (register, login, logout)
+- Payment tracking system
+- Receipt upload functionality
+- Ticket generation with QR codes
+- Admin panel for payment approval and seat assignment
 
-**Use Lovable**
+## Getting Started
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/124c014c-fb1d-4a91-b6e7-2ee0ce5d17f5) and start prompting.
+### Prerequisites
 
-Changes made via Lovable will be committed automatically to this repo.
+- Node.js (v16 or newer)
+- npm or yarn
+- Supabase account
 
-**Use your preferred IDE**
+### Setup
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. **Clone the repository**
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
+```bash
+git clone https://github.com/yourusername/event-registration.git
+cd event-registration
 ```
 
-**Edit a file directly in GitHub**
+2. **Install dependencies**
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+```bash
+npm install
+# or
+yarn install
+```
 
-**Use GitHub Codespaces**
+3. **Set up Supabase**
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- Create a new Supabase project
+- Run the SQL initialization script from `supabase-init.sql` in the Supabase SQL Editor
+- Create a `.env` file in the root directory with the following variables:
 
-## What technologies are used for this project?
+```
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+```
 
-This project is built with .
+4. **Start the development server**
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+```bash
+npm run dev
+# or
+yarn dev
+```
 
-## How can I deploy this project?
+5. **Creating an admin user**
 
-Simply open [Lovable](https://lovable.dev/projects/124c014c-fb1d-4a91-b6e7-2ee0ce5d17f5) and click on Share -> Publish.
+After registering a new user:
+- Go to your Supabase dashboard
+- Navigate to the SQL Editor
+- Run the following query (replace `user_email@example.com` with the email of the user you want to make an admin):
 
-## I want to use a custom domain - is that possible?
+```sql
+UPDATE public.users
+SET role = 'admin'
+WHERE email = 'user_email@example.com';
+```
 
-We don't support custom domains (yet). If you want to deploy your project under your own domain then we recommend using Netlify. Visit our docs for more details: [Custom domains](https://docs.lovable.dev/tips-tricks/custom-domain/)
+## Database Schema
+
+The application uses three main tables:
+
+1. **users** - Stores user information
+2. **payments** - Tracks payment status and receipt URLs
+3. **tickets** - Stores ticket and seating information
+
+## Storage
+
+The application uses Supabase Storage to store payment receipts in the `event-receipts` bucket.
+
+## Security
+
+- Row-Level Security (RLS) policies are implemented for all tables
+- Users can only access their own data
+- Admin users have access to all data
+
+## Deployment
+
+1. Build the application:
+
+```bash
+npm run build
+# or
+yarn build
+```
+
+2. Deploy the `dist` directory to your hosting provider of choice.
+
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
