@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -172,11 +171,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (!user) throw new Error("Not authenticated");
       
-      const updatedUser = {
+      // Ensure we're using the exact type for payment.status
+      const updatedUser: User = {
         ...user,
         payment: {
           ...user.payment,
-          status: "pending",
+          status: "pending" as const,
           receiptUrl
         }
       };
@@ -185,7 +185,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       localStorage.setItem("user", JSON.stringify(updatedUser));
       
       // Update in users array
-      setUsers(users.map(u => u.id === user.id ? updatedUser : u));
+      const updatedUsers = users.map(u => u.id === user.id ? updatedUser : u);
+      setUsers(updatedUsers);
       
       toast({
         title: "Receipt uploaded",
