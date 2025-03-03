@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/components/ui/use-toast";
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Button } from '@/components/ui/button';
@@ -46,14 +47,11 @@ const UploadReceipt = () => {
       return;
     }
 
-    const fileExt = selectedFile.name.split('.').pop();
-    const fileName = `${userId}_${Date.now()}.${fileExt}`;
-    const filePath = `receipts/${userId}/${fileName}`;
-
     setFile(selectedFile);
 
     try {
       setUploading(true);
+      const fileExt = selectedFile.name.split('.').pop();
       const fileName = `${userId}_${Date.now()}.${fileExt}`;
       const filePath = `receipts/${userId}/${fileName}`;
       
@@ -63,7 +61,6 @@ const UploadReceipt = () => {
         .upload(filePath, selectedFile, {
           cacheControl: '3600',
           upsert: false
-          // Removed onUploadProgress as it's not supported in the FileOptions type
         });
 
       if (uploadError) {
