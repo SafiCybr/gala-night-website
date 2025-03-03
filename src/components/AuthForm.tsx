@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -26,18 +25,51 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
     e.preventDefault();
     setError(null);
 
+    if (!email) {
+      setError("Email is required");
+      return;
+    }
+
+    if (!password) {
+      setError("Password is required");
+      return;
+    }
+
+    if (!isLogin && !name) {
+      setError("Name is required");
+      return;
+    }
+
     try {
       if (isLogin) {
         await login(email, password);
+        navigate("/dashboard");
       } else {
-        if (!name) {
-          throw new Error("Name is required");
-        }
         await registerUser(name, email, password);
+        navigate("/dashboard");
       }
-      navigate("/dashboard");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      console.error("Authentication error:", err);
+      
+      let errorMessage = "An unexpected error occurred";
+      
+      if (err instanceof Error) {
+        const errorText = err.message.toLowerCase();
+        
+        if (errorText.includes("invalid login credentials")) {
+          errorMessage = "Invalid email or password";
+        } else if (errorText.includes("email already")) {
+          errorMessage = "This email is already registered";
+        } else if (errorText.includes("weak password")) {
+          errorMessage = "Password is too weak. Use at least 6 characters";
+        } else if (errorText.includes("invalid email")) {
+          errorMessage = "Please enter a valid email address";
+        } else {
+          errorMessage = err.message;
+        }
+      }
+      
+      setError(errorMessage);
     }
   };
 
@@ -115,7 +147,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
         </div>
 
         {error && (
-          <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md">
+          <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md border border-red-200">
             {error}
           </div>
         )}

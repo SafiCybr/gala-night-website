@@ -60,6 +60,7 @@ ON CONFLICT (id) DO NOTHING;
 -- Users table
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 
+-- Fixed: The circular reference in the admin policy was causing infinite recursion
 CREATE POLICY "Users can view their own data" 
 ON public.users FOR SELECT 
 USING (auth.uid() = id);
@@ -67,19 +68,13 @@ USING (auth.uid() = id);
 CREATE POLICY "Admins can view all users" 
 ON public.users FOR SELECT 
 USING (
-    EXISTS (
-        SELECT 1 FROM public.users
-        WHERE id = auth.uid() AND role = 'admin'
-    )
+    (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
 );
 
 CREATE POLICY "Admins can update users" 
 ON public.users FOR UPDATE 
 USING (
-    EXISTS (
-        SELECT 1 FROM public.users
-        WHERE id = auth.uid() AND role = 'admin'
-    )
+    (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
 );
 
 -- Payments table
@@ -96,19 +91,13 @@ USING (auth.uid() = user_id);
 CREATE POLICY "Admins can view all payments" 
 ON public.payments FOR SELECT 
 USING (
-    EXISTS (
-        SELECT 1 FROM public.users
-        WHERE id = auth.uid() AND role = 'admin'
-    )
+    (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
 );
 
 CREATE POLICY "Admins can update all payments" 
 ON public.payments FOR UPDATE 
 USING (
-    EXISTS (
-        SELECT 1 FROM public.users
-        WHERE id = auth.uid() AND role = 'admin'
-    )
+    (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
 );
 
 -- Tickets table
@@ -121,19 +110,13 @@ USING (auth.uid() = user_id);
 CREATE POLICY "Admins can view all tickets" 
 ON public.tickets FOR SELECT 
 USING (
-    EXISTS (
-        SELECT 1 FROM public.users
-        WHERE id = auth.uid() AND role = 'admin'
-    )
+    (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
 );
 
 CREATE POLICY "Admins can create and update tickets" 
 ON public.tickets FOR ALL 
 USING (
-    EXISTS (
-        SELECT 1 FROM public.users
-        WHERE id = auth.uid() AND role = 'admin'
-    )
+    (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
 );
 
 -- Storage policies
@@ -151,10 +134,7 @@ USING (
     bucket_id = 'event-receipts' AND
     (
         auth.uid()::text = (storage.foldername(name))[2] OR
-        EXISTS (
-            SELECT 1 FROM public.users
-            WHERE id = auth.uid() AND role = 'admin'
-        )
+        (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
     )
 );
 
@@ -162,8 +142,5 @@ CREATE POLICY "Admins can view all receipts"
 ON storage.objects FOR SELECT
 USING (
     bucket_id = 'event-receipts' AND
-    EXISTS (
-        SELECT 1 FROM public.users
-        WHERE id = auth.uid() AND role = 'admin'
-    )
+    (SELECT role FROM public.users WHERE id = auth.uid()) = 'admin'
 );

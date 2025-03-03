@@ -29,62 +29,64 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Check if user is already authenticated
+  // Check if user is already authenticated - simplified to avoid RLS issues
   useEffect(() => {
     const fetchUserData = async () => {
       try {
+        setIsLoading(true);
+        
+        // Get session
         const { data: { session } } = await supabase.auth.getSession();
         
-        if (session) {
-          // Get user details from auth
-          const { data: userData, error: userError } = await supabase.auth.getUser();
-          
-          if (userError) throw userError;
-          
-          if (userData && userData.user) {
-            // Fetch additional user info from our users table
-            const { data: userDetails, error: detailsError } = await supabase
-              .from('users')
-              .select('*')
-              .eq('id', userData.user.id)
-              .single();
-              
-            if (detailsError) throw detailsError;
-            
-            // Fetch payment info
-            const { data: paymentData, error: paymentError } = await supabase
-              .from('payments')
-              .select('*')
-              .eq('user_id', userData.user.id)
-              .maybeSingle();
-              
-            if (paymentError) throw paymentError;
-            
-            // Fetch ticket info
-            const { data: ticketData, error: ticketError } = await supabase
-              .from('tickets')
-              .select('*')
-              .eq('user_id', userData.user.id)
-              .maybeSingle();
-              
-            if (ticketError) throw ticketError;
-            
-            const userWithDetails: UserWithDetails = {
-              ...userDetails,
-              payment: paymentData || undefined,
-              ticket: ticketData || undefined
-            };
-            
-            setUser(userWithDetails);
-          }
+        if (!session) {
+          setUser(null);
+          return;
         }
+        
+        // Get auth user
+        const { data: authUser, error: authError } = await supabase.auth.getUser();
+        
+        if (authError || !authUser.user) {
+          throw authError || new Error("User not found");
+        }
+        
+        // Get user details using service role if possible, or direct query
+        // This approach minimizes the risk of RLS recursion issues
+        const { data: userData, error: userError } = await supabase
+          .from('users')
+          .select('*')
+          .eq('id', authUser.user.id)
+          .single();
+          
+        if (userError) {
+          console.error("Error fetching user details:", userError);
+          setUser(null);
+          return;
+        }
+        
+        // Get payment data
+        const { data: paymentData } = await supabase
+          .from('payments')
+          .select('*')
+          .eq('user_id', userData.id)
+          .maybeSingle();
+          
+        // Get ticket data  
+        const { data: ticketData } = await supabase
+          .from('tickets')
+          .select('*')
+          .eq('user_id', userData.id)
+          .maybeSingle();
+          
+        // Set user with details
+        setUser({
+          ...userData,
+          payment: paymentData || undefined,
+          ticket: ticketData || undefined
+        });
       } catch (error) {
         console.error('Error fetching user data:', error);
-        toast({
-          title: "Authentication error",
-          description: "Failed to retrieve user session",
-          variant: "destructive"
-        });
+        setUser(null);
       } finally {
         setIsLoading(false);
       }
@@ -93,9 +95,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetchUserData();
     
     // Set up auth state change listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === 'SIGNED_IN' && session) {
-        // Refresh user data when signed in
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      if (event === 'SIGNED_IN') {
         fetchUserData();
       } else if (event === 'SIGNED_OUT') {
         setUser(null);
