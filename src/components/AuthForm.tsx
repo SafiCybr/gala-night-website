@@ -1,4 +1,3 @@
-
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -43,12 +42,18 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
 
     try {
       if (isLogin) {
-        const userData = await login(email, password);
-        // Direct admins to admin panel, regular users to dashboard
-        if (userData && userData.role === 'admin') {
-          navigate("/admin");
-        } else {
-          navigate("/dashboard");
+        try {
+          const userData = await login(email, password);
+          // Direct admins to admin panel, regular users to dashboard
+          if (userData && userData.role === 'admin') {
+            navigate("/admin");
+          } else {
+            navigate("/dashboard");
+          }
+        } catch (err) {
+          // Login error is already handled in the login function
+          // No need to set error here as it's done in the login function
+          console.error("Login failed:", err);
         }
       } else {
         await registerUser(name, email, password);

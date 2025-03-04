@@ -1,4 +1,3 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase, User, Payment, Ticket } from "@/lib/supabase";
@@ -12,7 +11,7 @@ type UserWithDetails = User & {
 type AuthContextType = {
   user: UserWithDetails | null;
   isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<UserWithDetails | null>;
   register: (name: string, email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
@@ -108,7 +107,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, [toast]);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<UserWithDetails | null> => {
     setIsLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({
