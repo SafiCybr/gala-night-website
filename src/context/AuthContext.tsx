@@ -1,9 +1,7 @@
-
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase, User, Payment, Ticket } from "@/lib/supabase";
 
-// Updated to match our Supabase schema
 type UserWithDetails = User & {
   payment?: Payment;
   ticket?: Ticket;
@@ -20,6 +18,7 @@ type AuthContextType = {
   getUsers: () => Promise<UserWithDetails[]>;
   updatePaymentStatus: (userId: string, status: "confirmed" | "rejected") => Promise<void>;
   assignSeat: (userId: string, tableType: "Standard" | "Premium" | "VIP", tableNumber: string, seatNumber: string) => Promise<void>;
+  promoteToAdmin: (userId: string) => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,7 +32,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       setIsLoading(true);
       
-      // Get session
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -41,7 +39,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return;
       }
       
-      // Get auth user
       const { data: authUser, error: authError } = await supabase.auth.getUser();
       
       if (authError || !authUser.user) {
@@ -50,8 +47,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Auth user:", authUser.user);
       
-      // Get user details using service role if possible, or direct query
-      // This approach minimizes the risk of RLS recursion issues
       const { data: userData, error: userError } = await supabase
         .from('users')
         .select('*')
@@ -66,14 +61,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("User data from DB:", userData);
       
-      // Get payment data
       const { data: paymentData } = await supabase
         .from('payments')
         .select('*')
         .eq('user_id', userData.id)
         .maybeSingle();
         
-      // Get ticket data  
       const { data: ticketData } = await supabase
         .from('tickets')
         .select('*')
@@ -83,7 +76,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.log("Payment data:", paymentData);
       console.log("Ticket data:", ticketData);
       
-      // Set user with details
       setUser({
         ...userData,
         payment: paymentData || undefined,
@@ -97,11 +89,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  // Check if user is already authenticated
   useEffect(() => {
     fetchUserData();
     
-    // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
       console.log("Auth state changed:", event);
       if (event === 'SIGNED_IN') {
@@ -126,7 +116,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // Get user details to return for redirection logic
       const { data: { session } } = await supabase.auth.getSession();
       
       if (!session) {
@@ -148,7 +137,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         description: "Welcome back!",
       });
       
-      // Return user data including role for redirection
       return userData;
     } catch (error) {
       console.error(error);
@@ -166,7 +154,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const register = async (name: string, email: string, password: string) => {
     setIsLoading(true);
     try {
-      // Sign up with Supabase Auth
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email,
         password,
@@ -180,7 +167,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (authError) throw authError;
       
       if (authData.user) {
-        // Create user record in 'users' table
         const { error: userError } = await supabase
           .from('users')
           .insert({
@@ -192,7 +178,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
         if (userError) throw userError;
         
-        // Create initial payment record
         const { error: paymentError } = await supabase
           .from('payments')
           .insert({
@@ -246,7 +231,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       if (!user) throw new Error("Not authenticated");
       
-      // Update payment record in Supabase
       const { error } = await supabase
         .from('payments')
         .update({
@@ -258,7 +242,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       if (error) throw error;
       
-      // Refresh user data
       const { data: paymentData, error: paymentError } = await supabase
         .from('payments')
         .select('*')
@@ -267,7 +250,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       if (paymentError) throw paymentError;
       
-      // Update local state
       setUser({
         ...user,
         payment: paymentData
@@ -299,7 +281,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       console.log("Admin fetching all users");
       
-      // Get all users with their payment and ticket info
       const { data: users, error: usersError } = await supabase
         .from('users')
         .select('*');
@@ -310,7 +291,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       const usersWithDetails: UserWithDetails[] = [];
       
-      // Fetch payment and ticket details for each user
       for (const userData of users) {
         const { data: paymentData } = await supabase
           .from('payments')
@@ -351,7 +331,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Unauthorized access");
       }
       
-      // Update payment status in Supabase
       const { error } = await supabase
         .from('payments')
         .update({
@@ -362,7 +341,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       if (error) throw error;
       
-      // If current user is the one being updated, update current user state too
       if (user.id === userId) {
         const { data: paymentData, error: paymentError } = await supabase
           .from('payments')
@@ -402,7 +380,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Unauthorized access");
       }
       
-      // Check if this user already has a ticket
       const { data: existingTicket, error: checkError } = await supabase
         .from('tickets')
         .select('*')
@@ -414,7 +391,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       let error;
       
       if (existingTicket) {
-        // Update existing ticket
         const { error: updateError } = await supabase
           .from('tickets')
           .update({
@@ -426,7 +402,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           
         error = updateError;
       } else {
-        // Create new ticket
         const { error: insertError } = await supabase
           .from('tickets')
           .insert({
@@ -441,7 +416,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
-      // If current user is the one being updated, update current user state too
       if (user.id === userId) {
         const { data: ticketData, error: ticketError } = await supabase
           .from('tickets')
@@ -474,6 +448,39 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const promoteToAdmin = async (userId: string) => {
+    setIsLoading(true);
+    try {
+      if (!user || user.role !== 'admin') {
+        throw new Error("Unauthorized access");
+      }
+      
+      const { error } = await supabase
+        .from('users')
+        .update({
+          role: 'admin'
+        })
+        .eq('id', userId);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "User promoted",
+        description: "User has been promoted to admin successfully.",
+      });
+    } catch (error) {
+      console.error(error);
+      toast({
+        title: "Promotion failed",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive",
+      });
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -486,7 +493,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         uploadReceipt,
         getUsers,
         updatePaymentStatus,
-        assignSeat
+        assignSeat,
+        promoteToAdmin
       }}
     >
       {children}

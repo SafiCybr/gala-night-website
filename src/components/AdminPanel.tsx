@@ -24,12 +24,15 @@ import {
   Filter, 
   Eye, 
   AlertTriangle,
-  CheckCircle 
+  CheckCircle,
+  Shield,
+  UserCheck
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User } from "@/lib/supabase";
 import QrScanner from "./QrScanner";
+import { useToast } from "@/components/ui/use-toast";
 
 type UserWithDetails = User & {
   payment?: {
@@ -48,7 +51,7 @@ type UserWithDetails = User & {
 };
 
 const AdminPanel = () => {
-  const { getUsers, updatePaymentStatus, assignSeat } = useAuth();
+  const { getUsers, updatePaymentStatus, assignSeat, promoteToAdmin } = useAuth();
   const [users, setUsers] = useState<UserWithDetails[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -57,6 +60,8 @@ const AdminPanel = () => {
   const [tableNumber, setTableNumber] = useState("");
   const [seatNumber, setSeatNumber] = useState("");
   const [filter, setFilter] = useState<"all" | "pending" | "confirmed" | "rejected">("all");
+  const [userFilter, setUserFilter] = useState<"all" | "admin" | "user">("all");
+  const { toast } = useToast();
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -124,6 +129,29 @@ const AdminPanel = () => {
     }
   };
 
+  const handlePromoteToAdmin = async (userId: string) => {
+    try {
+      await promoteToAdmin(userId);
+      
+      setUsers(users.map(user => {
+        if (user.id === userId) {
+          return {
+            ...user,
+            role: 'admin'
+          };
+        }
+        return user;
+      }));
+      
+      toast({
+        title: "Success",
+        description: "User has been promoted to admin",
+      });
+    } catch (error) {
+      console.error("Error promoting user:", error);
+    }
+  };
+
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -134,6 +162,19 @@ const AdminPanel = () => {
       (user.payment?.status === filter);
     
     return matchesSearch && matchesFilter;
+  });
+
+  const filteredUsersForRoles = users.filter(user => {
+    const matchesSearch = 
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesRoleFilter = 
+      userFilter === "all" || 
+      (userFilter === "admin" && user.role === "admin") ||
+      (userFilter === "user" && user.role === "user");
+    
+    return matchesSearch && matchesRoleFilter;
   });
 
   return (
@@ -149,6 +190,7 @@ const AdminPanel = () => {
         <TabsList className="mb-6">
           <TabsTrigger value="payments">Payments</TabsTrigger>
           <TabsTrigger value="seating">Seating</TabsTrigger>
+          <TabsTrigger value="users">User Management</TabsTrigger>
           <TabsTrigger value="scanner">Ticket Scanner</TabsTrigger>
         </TabsList>
 
@@ -436,6 +478,129 @@ const AdminPanel = () => {
               )}
             </div>
           </div>
+        </TabsContent>
+
+        <TabsContent value="users" className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-4">
+            <div className="relative w-full md:w-64">
+              <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search users..."
+                className="pl-8"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
+            
+            <div className="flex gap-2 items-center w-full md:w-auto">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <Select
+                value={userFilter}
+                onValueChange={(value) => setUserFilter(value as "all" | "admin" | "user")}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Filter by role" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All users</SelectItem>
+                  <SelectItem value="admin">Admins</SelectItem>
+                  <SelectItem value="user">Regular users</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {isLoading ? (
+            <div className="py-8 flex justify-center items-center">
+              <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
+            </div>
+          ) : (
+            <div className="rounded-md border">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Payment Status</TableHead>
+                    <TableHead>Seat</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredUsersForRoles.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
+                        No users found
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredUsersForRoles.map((user) => (
+                      <TableRow key={user.id}>
+                        <TableCell>
+                          <div>
+                            <p className="font-medium">{user.name}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge 
+                            variant={user.role === "admin" ? "default" : "outline"}
+                            className={user.role === "admin" ? "bg-purple-500" : ""}
+                          >
+                            {user.role === "admin" ? (
+                              <div className="flex items-center gap-1">
+                                <Shield className="h-3 w-3" />
+                                <span>Admin</span>
+                              </div>
+                            ) : "User"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          {user.payment ? (
+                            <Badge 
+                              variant={
+                                user.payment.status === "confirmed" 
+                                  ? "default" 
+                                  : user.payment.status === "rejected"
+                                  ? "destructive"
+                                  : "outline"
+                              }
+                            >
+                              {user.payment.status}
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline">No payment</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {user.ticket ? (
+                            <span className="text-sm">
+                              {user.ticket.table_type} - Table {user.ticket.table_number}, 
+                              Seat {user.ticket.seat_number}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">Not assigned</span>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {user.role !== "admin" && (
+                            <Button 
+                              size="sm" 
+                              onClick={() => handlePromoteToAdmin(user.id)}
+                              className="bg-purple-600 hover:bg-purple-700"
+                            >
+                              <UserCheck className="h-4 w-4 mr-1" />
+                              Make Admin
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
         </TabsContent>
 
         <TabsContent value="scanner" className="space-y-4">
