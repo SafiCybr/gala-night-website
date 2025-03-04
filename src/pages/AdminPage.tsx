@@ -39,6 +39,20 @@ const AdminPage = () => {
     }
   }, [user, isAdmin, isLoading, navigate, toast]);
 
+  // Add more detailed logging to debug authentication issues
+  useEffect(() => {
+    if (user) {
+      console.log("AdminPage - Current user details:", {
+        id: user.id,
+        email: user.email,
+        role: user.role,
+        isAdmin
+      });
+    } else {
+      console.log("AdminPage - No user available");
+    }
+  }, [user, isAdmin]);
+
   if (isLoading || !adminCheckComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center">
