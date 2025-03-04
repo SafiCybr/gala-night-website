@@ -1,3 +1,4 @@
+
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase, User, Payment, Ticket } from "@/lib/supabase";
@@ -28,73 +29,81 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
-  // Check if user is already authenticated - simplified to avoid RLS issues
-  useEffect(() => {
-    const fetchUserData = async () => {
-      try {
-        setIsLoading(true);
-        
-        // Get session
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (!session) {
-          setUser(null);
-          return;
-        }
-        
-        // Get auth user
-        const { data: authUser, error: authError } = await supabase.auth.getUser();
-        
-        if (authError || !authUser.user) {
-          throw authError || new Error("User not found");
-        }
-        
-        // Get user details using service role if possible, or direct query
-        // This approach minimizes the risk of RLS recursion issues
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', authUser.user.id)
-          .single();
-          
-        if (userError) {
-          console.error("Error fetching user details:", userError);
-          setUser(null);
-          return;
-        }
-        
-        // Get payment data
-        const { data: paymentData } = await supabase
-          .from('payments')
-          .select('*')
-          .eq('user_id', userData.id)
-          .maybeSingle();
-          
-        // Get ticket data  
-        const { data: ticketData } = await supabase
-          .from('tickets')
-          .select('*')
-          .eq('user_id', userData.id)
-          .maybeSingle();
-          
-        // Set user with details
-        setUser({
-          ...userData,
-          payment: paymentData || undefined,
-          ticket: ticketData || undefined
-        });
-      } catch (error) {
-        console.error('Error fetching user data:', error);
+  const fetchUserData = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Get session
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
         setUser(null);
-      } finally {
-        setIsLoading(false);
+        return;
       }
-    };
-    
+      
+      // Get auth user
+      const { data: authUser, error: authError } = await supabase.auth.getUser();
+      
+      if (authError || !authUser.user) {
+        throw authError || new Error("User not found");
+      }
+      
+      console.log("Auth user:", authUser.user);
+      
+      // Get user details using service role if possible, or direct query
+      // This approach minimizes the risk of RLS recursion issues
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', authUser.user.id)
+        .single();
+        
+      if (userError) {
+        console.error("Error fetching user details:", userError);
+        setUser(null);
+        return;
+      }
+      
+      console.log("User data from DB:", userData);
+      
+      // Get payment data
+      const { data: paymentData } = await supabase
+        .from('payments')
+        .select('*')
+        .eq('user_id', userData.id)
+        .maybeSingle();
+        
+      // Get ticket data  
+      const { data: ticketData } = await supabase
+        .from('tickets')
+        .select('*')
+        .eq('user_id', userData.id)
+        .maybeSingle();
+        
+      console.log("Payment data:", paymentData);
+      console.log("Ticket data:", ticketData);
+      
+      // Set user with details
+      setUser({
+        ...userData,
+        payment: paymentData || undefined,
+        ticket: ticketData || undefined
+      });
+    } catch (error) {
+      console.error('Error fetching user data:', error);
+      setUser(null);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check if user is already authenticated
+  useEffect(() => {
     fetchUserData();
     
     // Set up auth state change listener
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
+      console.log("Auth state changed:", event);
       if (event === 'SIGNED_IN') {
         fetchUserData();
       } else if (event === 'SIGNED_OUT') {
@@ -132,12 +141,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       if (userError) throw userError;
       
+      console.log("User data after login:", userData);
+      
       toast({
         title: "Login successful",
         description: "Welcome back!",
       });
       
-      return userData; // Return user data for redirection
+      // Return user data including role for redirection
+      return userData;
     } catch (error) {
       console.error(error);
       toast({
@@ -281,8 +293,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const getUsers = async () => {
     try {
       if (!user || user.role !== 'admin') {
+        console.error("Unauthorized access attempt to getUsers by non-admin user:", user);
         throw new Error("Unauthorized access");
       }
+      
+      console.log("Admin fetching all users");
       
       // Get all users with their payment and ticket info
       const { data: users, error: usersError } = await supabase
@@ -290,6 +305,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         .select('*');
         
       if (usersError) throw usersError;
+      
+      console.log("All users:", users);
       
       const usersWithDetails: UserWithDetails[] = [];
       
@@ -314,6 +331,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         });
       }
       
+      console.log("Users with details:", usersWithDetails);
       return usersWithDetails;
     } catch (error) {
       console.error(error);

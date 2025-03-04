@@ -54,7 +54,7 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                 <div className="flex items-center gap-4">
                   <div className={cn(
                     "h-10 w-10 rounded-full flex items-center justify-center text-sm font-medium",
-                    user.payment?.status === "pending" || user.payment?.status === "confirmed"
+                    user.payment?.receipt_url
                       ? "bg-primary/10 text-primary"
                       : "bg-muted text-muted-foreground"
                   )}>
@@ -63,18 +63,18 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                   <div>
                     <div className="font-medium">Payment Submitted</div>
                     <div className="text-sm text-muted-foreground">
-                      {user.payment?.receipt_url ? "Receipt uploaded" : "Upload your payment receipt"}
+                      {user.payment?.receipt_url ? "Upload your payment receipt" : "Awaiting receipt upload"}
                     </div>
                   </div>
                 </div>
                 <div>
                   {user.payment?.receipt_url ? (
                     <div className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-500">
-                      Completed
+                      Successful
                     </div>
                   ) : (
-                    <div className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
-                      Pending
+                    <div className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-500">
+                      Awaiting
                     </div>
                   )}
                 </div>
@@ -93,14 +93,20 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                   <div>
                     <div className="font-medium">Payment Confirmation</div>
                     <div className="text-sm text-muted-foreground">
-                      {user.payment?.status === "confirmed" 
-                        ? "Your payment has been confirmed" 
-                        : "Awaiting admin confirmation"}
+                      {!user.payment?.receipt_url 
+                        ? "Awaiting Confirmation" 
+                        : user.payment?.status === "confirmed" 
+                          ? "Your payment has been confirmed" 
+                          : "Your payment is being checked"}
                     </div>
                   </div>
                 </div>
                 <div>
-                  {user.payment?.status === "confirmed" ? (
+                  {!user.payment?.receipt_url ? (
+                    <div className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-500">
+                      Awaiting Confirmation
+                    </div>
+                  ) : user.payment?.status === "confirmed" ? (
                     <div className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-500">
                       Confirmed
                     </div>
@@ -129,19 +135,25 @@ const Dashboard: React.FC<DashboardProps> = ({ className }) => {
                   <div>
                     <div className="font-medium">Seat Assignment</div>
                     <div className="text-sm text-muted-foreground">
-                      {user.ticket
-                        ? `${user.ticket.table_type} - Table ${user.ticket.table_number}, Seat ${user.ticket.seat_number}`
-                        : "Waiting for seat assignment"}
+                      {!user.payment?.receipt_url 
+                        ? "Awaiting Upload" 
+                        : user.ticket
+                          ? `${user.ticket.table_type} - Table ${user.ticket.table_number}, Seat ${user.ticket.seat_number}`
+                          : "Waiting for seat assignment"}
                     </div>
                   </div>
                 </div>
                 <div>
-                  {user.ticket ? (
+                  {!user.payment?.receipt_url ? (
+                    <div className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-500">
+                      Awaiting Upload
+                    </div>
+                  ) : user.ticket ? (
                     <div className="text-xs px-2 py-1 rounded-full bg-green-500/10 text-green-500">
-                      Assigned
+                      Successful
                     </div>
                   ) : (
-                    <div className="text-xs px-2 py-1 rounded-full bg-muted text-muted-foreground">
+                    <div className="text-xs px-2 py-1 rounded-full bg-yellow-500/10 text-yellow-500">
                       Pending
                     </div>
                   )}

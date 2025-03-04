@@ -25,6 +25,13 @@ const Header = () => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
 
+  // Log to check if admin status is correctly recognized
+  useEffect(() => {
+    if (user) {
+      console.log("Header - Current user:", user.email, "Is admin:", isAdmin, "Role:", user.role);
+    }
+  }, [user, isAdmin]);
+
   return (
     <header
       className={cn(
@@ -51,7 +58,7 @@ const Header = () => {
               </Link>
               
               {isAdmin && (
-                <Link to="/admin" className="link-hover font-medium">
+                <Link to="/admin" className="link-hover font-medium text-primary">
                   Admin Panel
                 </Link>
               )}
@@ -106,7 +113,7 @@ const Header = () => {
                 {isAdmin && (
                   <Link 
                     to="/admin" 
-                    className="py-2 px-4 hover:bg-muted rounded-md transition-colors"
+                    className="py-2 px-4 hover:bg-primary/10 text-primary rounded-md transition-colors"
                   >
                     Admin Panel
                   </Link>

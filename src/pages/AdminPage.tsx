@@ -1,22 +1,45 @@
 
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import Header from "@/components/Header";
 import AdminPanel from "@/components/AdminPanel";
 import { useAuth } from "@/context/AuthContext";
+import { useToast } from "@/components/ui/use-toast";
 
 const AdminPage = () => {
   const { user, isAdmin, isLoading } = useAuth();
   const navigate = useNavigate();
+  const { toast } = useToast();
+  const [adminCheckComplete, setAdminCheckComplete] = useState(false);
 
   useEffect(() => {
     // If not loading and either no user or not admin, redirect
-    if (!isLoading && (!user || !isAdmin)) {
-      navigate("/login");
+    if (!isLoading) {
+      setAdminCheckComplete(true);
+      
+      if (!user) {
+        console.log("No user found, redirecting to login");
+        toast({
+          title: "Authentication required",
+          description: "Please login to access this page",
+          variant: "destructive",
+        });
+        navigate("/login");
+      } else if (!isAdmin) {
+        console.log("User is not an admin, redirecting to dashboard:", user);
+        toast({
+          title: "Access denied",
+          description: "You need admin privileges to access this page",
+          variant: "destructive",
+        });
+        navigate("/dashboard");
+      } else {
+        console.log("Admin access granted for user:", user);
+      }
     }
-  }, [user, isAdmin, isLoading, navigate]);
+  }, [user, isAdmin, isLoading, navigate, toast]);
 
-  if (isLoading) {
+  if (isLoading || !adminCheckComplete) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin h-8 w-8 border-4 border-primary border-t-transparent rounded-full"></div>
