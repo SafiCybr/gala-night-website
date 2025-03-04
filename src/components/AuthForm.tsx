@@ -43,9 +43,9 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
 
     try {
       if (isLogin) {
-        const user = await login(email, password);
+        const userData = await login(email, password);
         // Direct admins to admin panel, regular users to dashboard
-        if (user && user.role === 'admin') {
+        if (userData && userData.role === 'admin') {
           navigate("/admin");
         } else {
           navigate("/dashboard");
