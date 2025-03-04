@@ -1,3 +1,4 @@
+
 import React, { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
@@ -42,8 +43,13 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
 
     try {
       if (isLogin) {
-        await login(email, password);
-        navigate("/dashboard");
+        const user = await login(email, password);
+        // Direct admins to admin panel, regular users to dashboard
+        if (user && user.role === 'admin') {
+          navigate("/admin");
+        } else {
+          navigate("/dashboard");
+        }
       } else {
         await registerUser(name, email, password);
         navigate("/dashboard");

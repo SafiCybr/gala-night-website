@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import {
@@ -30,6 +29,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { User } from "@/lib/supabase";
+import QrScanner from "./QrScanner";
 
 type UserWithDetails = User & {
   payment?: {
@@ -77,7 +77,6 @@ const AdminPanel = () => {
   const handlePaymentStatus = async (userId: string, status: "confirmed" | "rejected") => {
     try {
       await updatePaymentStatus(userId, status);
-      // Update local state
       setUsers(users.map(user => {
         if (user.id === userId) {
           return {
@@ -100,7 +99,6 @@ const AdminPanel = () => {
     
     try {
       await assignSeat(userId, tableType, tableNumber, seatNumber);
-      // Update local state
       setUsers(users.map(user => {
         if (user.id === userId) {
           return {
@@ -117,7 +115,6 @@ const AdminPanel = () => {
         return user;
       }));
       
-      // Reset form
       setSelectedUser(null);
       setTableType("Standard");
       setTableNumber("");
@@ -442,18 +439,7 @@ const AdminPanel = () => {
         </TabsContent>
 
         <TabsContent value="scanner" className="space-y-4">
-          <div className="p-8 border rounded-md text-center space-y-4">
-            <h3 className="text-lg font-medium">QR Code Scanner</h3>
-            <p className="text-muted-foreground">
-              Use this feature at the event venue to scan and verify tickets.
-            </p>
-            <Button className="mt-4">
-              Open Scanner
-            </Button>
-            <p className="text-xs text-muted-foreground mt-4">
-              Note: You need to allow camera access to use the scanner
-            </p>
-          </div>
+          <QrScanner />
         </TabsContent>
       </Tabs>
     </div>

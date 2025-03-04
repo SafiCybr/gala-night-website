@@ -118,10 +118,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       if (error) throw error;
       
+      // Get user details to return for redirection logic
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
+        throw new Error("Failed to get session after login");
+      }
+      
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', session.user.id)
+        .single();
+        
+      if (userError) throw userError;
+      
       toast({
         title: "Login successful",
         description: "Welcome back!",
       });
+      
+      return userData; // Return user data for redirection
     } catch (error) {
       console.error(error);
       toast({
