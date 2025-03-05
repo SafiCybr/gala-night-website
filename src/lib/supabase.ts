@@ -21,6 +21,7 @@ export type User = {
   id: string;
   name: string;
   email: string;
+  matric_number?: string; // Added matric_number as optional property
   role: 'user' | 'admin';
   created_at?: string;
 };
