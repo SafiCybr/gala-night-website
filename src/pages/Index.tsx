@@ -64,7 +64,7 @@ const Index = () => {
         <footer className="py-12 bg-muted/30">
           <div className="container mx-auto px-4 text-center">
             <p className="text-sm text-muted-foreground">
-              © 2023 EventRegistry. All rights reserved.
+              © 2025 EventRegistry. All rights reserved.
             </p>
           </div>
         </footer>
