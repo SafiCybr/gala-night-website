@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,6 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 type TicketData = {
   userId: string;
   name: string;
+  matricNumber?: string;
   tableType: string;
   tableNumber: string;
   seatNumber: string;
@@ -23,7 +23,6 @@ const QrScanner = () => {
   const streamRef = useRef<MediaStream | null>(null);
   const { toast } = useToast();
 
-  // Clean up video stream when component unmounts
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -75,37 +74,29 @@ const QrScanner = () => {
 
     if (!context) return;
 
-    // Wait for video to be ready
     if (video.readyState !== video.HAVE_ENOUGH_DATA) {
       requestAnimationFrame(scanQRCode);
       return;
     }
 
-    // Set canvas dimensions to match video
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
 
-    // Draw video frame to canvas
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
 
     try {
-      // Import QR code detection library dynamically
       const jsQR = (await import('jsqr')).default;
       
-      // Get image data from canvas
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
       
-      // Detect QR code
       const code = jsQR(imageData.data, imageData.width, imageData.height, {
         inversionAttempts: 'dontInvert',
       });
       
       if (code) {
-        // Try to parse QR code data
         try {
           const decodedData = JSON.parse(code.data) as TicketData;
           
-          // Verify it has the expected structure
           if (decodedData.userId && decodedData.name && decodedData.tableType) {
             setResult(decodedData);
             stopScanner();
@@ -116,12 +107,10 @@ const QrScanner = () => {
             return;
           }
         } catch (e) {
-          // If it's not a valid JSON, continue scanning
           console.log('Invalid QR code format, continuing scan');
         }
       }
       
-      // Continue scanning if no valid QR code found
       requestAnimationFrame(scanQRCode);
     } catch (err) {
       console.error('QR scanning error:', err);
@@ -171,6 +160,12 @@ const QrScanner = () => {
                 <p className="font-medium text-gray-500">Name</p>
                 <p>{result.name}</p>
               </div>
+              {result.matricNumber && (
+                <div className="space-y-1">
+                  <p className="font-medium text-gray-500">Matric Number</p>
+                  <p>{result.matricNumber}</p>
+                </div>
+              )}
               <div className="space-y-1">
                 <p className="font-medium text-gray-500">Table Type</p>
                 <p>{result.tableType}</p>

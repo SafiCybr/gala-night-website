@@ -21,6 +21,7 @@ const Ticket = () => {
   const qrCodeValue = JSON.stringify({
     userId: user.id,
     name: user.name,
+    matricNumber: user.matric_number,
     tableType: user.ticket.table_type,
     tableNumber: user.ticket.table_number,
     seatNumber: user.ticket.seat_number
@@ -47,13 +48,26 @@ const Ticket = () => {
           <p className="font-medium text-lg">{user.name}</p>
         </div>
         
+        <div className="space-y-1">
+          <h4 className="text-sm font-medium text-muted-foreground">Matric Number</h4>
+          <p className="font-medium">{user.matric_number || "Not provided"}</p>
+        </div>
+        
         <Separator />
         
-        <div className="grid grid-cols-3 gap-4">
-          <div className="space-y-1">
-            <h4 className="text-xs font-medium text-muted-foreground">Table Type</h4>
-            <p className="font-medium">{user.ticket.table_type}</p>
-          </div>
+        <div className="space-y-1">
+          <h4 className="text-sm font-medium text-muted-foreground">Experience Type</h4>
+          <p className="font-medium text-primary">{user.ticket.table_type}</p>
+          <p className="text-xs text-muted-foreground">
+            {user.ticket.table_type === 'Standard' && 'Basic event access (₦3,000)'}
+            {user.ticket.table_type === 'Premium' && 'Enhanced experience with premium benefits (₦5,000)'}
+            {user.ticket.table_type === 'VIP' && 'The ultimate exclusive experience (₦10,000)'}
+          </p>
+        </div>
+        
+        <Separator />
+        
+        <div className="grid grid-cols-2 gap-4">
           <div className="space-y-1">
             <h4 className="text-xs font-medium text-muted-foreground">Table Number</h4>
             <p className="font-medium">{user.ticket.table_number}</p>

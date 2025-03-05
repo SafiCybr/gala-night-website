@@ -16,6 +16,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [matricNumber, setMatricNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
   const { login, register: registerUser, isLoading } = useAuth();
   const navigate = useNavigate();
@@ -41,6 +42,11 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
       return;
     }
 
+    if (!isLogin && !matricNumber) {
+      setError("Matric number is required");
+      return;
+    }
+
     try {
       if (isLogin) {
         try {
@@ -59,7 +65,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
           throw err;
         }
       } else {
-        await registerUser(name, email, password);
+        await registerUser(name, email, password, matricNumber);
         navigate("/dashboard");
       }
     } catch (err) {
@@ -107,19 +113,34 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         {!isLogin && (
-          <div className="space-y-2">
-            <Label htmlFor="name">Full Name</Label>
-            <Input
-              id="name"
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="John Doe"
-              autoComplete="name"
-              required
-              className="transition-all"
-            />
-          </div>
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input
+                id="name"
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="John Doe"
+                autoComplete="name"
+                required
+                className="transition-all"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="matricNumber">Matric Number</Label>
+              <Input
+                id="matricNumber"
+                type="text"
+                value={matricNumber}
+                onChange={(e) => setMatricNumber(e.target.value)}
+                placeholder="ABC/123/456"
+                required
+                className="transition-all"
+              />
+            </div>
+          </>
         )}
 
         <div className="space-y-2">

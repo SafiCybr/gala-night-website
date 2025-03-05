@@ -11,7 +11,7 @@ type AuthContextType = {
   user: UserWithDetails | null;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<UserWithDetails | null>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (name: string, email: string, password: string, matricNumber: string) => Promise<void>;
   logout: () => Promise<void>;
   isAdmin: boolean;
   uploadReceipt: (receiptUrl: string) => Promise<void>;
@@ -151,7 +151,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const register = async (name: string, email: string, password: string) => {
+  const register = async (name: string, email: string, password: string, matricNumber: string) => {
     setIsLoading(true);
     try {
       const { data: authData, error: authError } = await supabase.auth.signUp({
@@ -159,7 +159,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         password,
         options: {
           data: {
-            name
+            name,
+            matricNumber
           }
         }
       });
@@ -173,7 +174,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             id: authData.user.id,
             name,
             email,
-            role: 'user'
+            role: 'user',
+            matric_number: matricNumber
           });
           
         if (userError) throw userError;

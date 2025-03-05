@@ -25,7 +25,7 @@ const pricingTiers: PricingTier[] = [
   {
     id: "standard",
     name: "Standard",
-    price: 149,
+    price: 3000,
     description: "Perfect for individuals looking to enjoy the event.",
     features: [
       "General seating",
@@ -38,7 +38,7 @@ const pricingTiers: PricingTier[] = [
   {
     id: "premium",
     name: "Premium",
-    price: 299,
+    price: 5000,
     description: "Enhanced experience with premium benefits.",
     features: [
       "Premium seating",
@@ -53,7 +53,7 @@ const pricingTiers: PricingTier[] = [
   {
     id: "vip",
     name: "VIP",
-    price: 499,
+    price: 10000,
     description: "The ultimate exclusive experience.",
     features: [
       "VIP front-row seating",
@@ -112,7 +112,7 @@ const PricingTiers = () => {
               
               <MotionCardContent>
                 <div className="mb-4">
-                  <span className="text-4xl font-bold">${tier.price}</span>
+                  <span className="text-4xl font-bold">₦{tier.price.toLocaleString()}</span>
                   <span className="text-muted-foreground"> / person</span>
                 </div>
                 
