@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
+import { AlertCircle } from "lucide-react";
 
 interface AuthFormProps {
   type: "login" | "register";
@@ -18,32 +19,44 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
   const [password, setPassword] = useState("");
   const [matricNumber, setMatricNumber] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{[key: string]: string}>({});
   const { login, register: registerUser, isLoading } = useAuth();
   const navigate = useNavigate();
 
   const isLogin = type === "login";
 
+  const validateForm = () => {
+    const errors: {[key: string]: string} = {};
+    
+    if (!email) {
+      errors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(email)) {
+      errors.email = "Please enter a valid email address";
+    }
+
+    if (!password) {
+      errors.password = "Password is required";
+    } else if (password.length < 6 && !isLogin) {
+      errors.password = "Password must be at least 6 characters";
+    }
+
+    if (!isLogin && !name) {
+      errors.name = "Full name is required";
+    }
+
+    if (!isLogin && !matricNumber) {
+      errors.matricNumber = "Matric number is required";
+    }
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
 
-    if (!email) {
-      setError("Email is required");
-      return;
-    }
-
-    if (!password) {
-      setError("Password is required");
-      return;
-    }
-
-    if (!isLogin && !name) {
-      setError("Name is required");
-      return;
-    }
-
-    if (!isLogin && !matricNumber) {
-      setError("Matric number is required");
+    if (!validateForm()) {
       return;
     }
 
@@ -115,7 +128,7 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
         {!isLogin && (
           <>
             <div className="space-y-2">
-              <Label htmlFor="name">Full Name</Label>
+              <Label htmlFor="name" className={validationErrors.name ? "text-destructive" : ""}>Full Name</Label>
               <Input
                 id="name"
                 type="text"
@@ -123,28 +136,38 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
                 onChange={(e) => setName(e.target.value)}
                 placeholder="John Doe"
                 autoComplete="name"
-                required
-                className="transition-all"
+                className={cn("transition-all", validationErrors.name && "border-destructive")}
               />
+              {validationErrors.name && (
+                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                  <AlertCircle size={12} />
+                  {validationErrors.name}
+                </p>
+              )}
             </div>
             
             <div className="space-y-2">
-              <Label htmlFor="matricNumber">Matric Number</Label>
+              <Label htmlFor="matricNumber" className={validationErrors.matricNumber ? "text-destructive" : ""}>Matric Number</Label>
               <Input
                 id="matricNumber"
                 type="text"
                 value={matricNumber}
                 onChange={(e) => setMatricNumber(e.target.value)}
                 placeholder="ABC/123/456"
-                required
-                className="transition-all"
+                className={cn("transition-all", validationErrors.matricNumber && "border-destructive")}
               />
+              {validationErrors.matricNumber && (
+                <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+                  <AlertCircle size={12} />
+                  {validationErrors.matricNumber}
+                </p>
+              )}
             </div>
           </>
         )}
 
         <div className="space-y-2">
-          <Label htmlFor="email">Email</Label>
+          <Label htmlFor="email" className={validationErrors.email ? "text-destructive" : ""}>Email</Label>
           <Input
             id="email"
             type="email"
@@ -152,14 +175,19 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="john@example.com"
             autoComplete="email"
-            required
-            className="transition-all"
+            className={cn("transition-all", validationErrors.email && "border-destructive")}
           />
+          {validationErrors.email && (
+            <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+              <AlertCircle size={12} />
+              {validationErrors.email}
+            </p>
+          )}
         </div>
 
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <Label htmlFor="password">Password</Label>
+            <Label htmlFor="password" className={validationErrors.password ? "text-destructive" : ""}>Password</Label>
             {isLogin && (
               <Link
                 to="#"
@@ -176,14 +204,20 @@ const AuthForm: React.FC<AuthFormProps> = ({ type, className }) => {
             onChange={(e) => setPassword(e.target.value)}
             placeholder="••••••••"
             autoComplete={isLogin ? "current-password" : "new-password"}
-            required
-            className="transition-all"
+            className={cn("transition-all", validationErrors.password && "border-destructive")}
           />
+          {validationErrors.password && (
+            <p className="text-xs text-destructive flex items-center gap-1 mt-1">
+              <AlertCircle size={12} />
+              {validationErrors.password}
+            </p>
+          )}
         </div>
 
         {error && (
-          <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md border border-red-200">
-            {error}
+          <div className="text-sm text-red-500 bg-red-50 p-3 rounded-md border border-red-200 flex items-start gap-2">
+            <AlertCircle className="shrink-0 mt-0.5" size={16} />
+            <span>{error}</span>
           </div>
         )}
 
