@@ -21,6 +21,7 @@ const Ticket = () => {
   const qrCodeValue = JSON.stringify({
     userId: user.id,
     name: user.name,
+    // Use optional chaining to safely access the matric_number property
     matricNumber: user.matric_number || "",
     tableType: user.ticket.table_type,
     tableNumber: user.ticket.table_number,
