@@ -23,7 +23,7 @@ const EventHero = () => {
               Exclusive Gala Event
             </div>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
-              Annual Evening <br />Gala Dinner 2023
+              Annual Evening <br />Gala Dinner 2025
             </h1>
             <p className="text-lg text-muted-foreground mb-8 max-w-md">
               Join us for an unforgettable evening of elegance, fine dining, networking, and entertainment at our prestigious venue.
@@ -32,15 +32,15 @@ const EventHero = () => {
             <div className="flex flex-col sm:flex-row gap-6 mb-12">
               <div className="flex items-center gap-2">
                 <Calendar className="w-5 h-5 text-primary" />
-                <span>December 15, 2023</span>
+                <span>July 2025</span>
               </div>
               <div className="flex items-center gap-2">
                 <Clock className="w-5 h-5 text-primary" />
-                <span>7:00 PM - 11:00 PM</span>
+                <span>4:00 PM - 9:00 PM</span>
               </div>
               <div className="flex items-center gap-2">
                 <MapPin className="w-5 h-5 text-primary" />
-                <span>Grand Hotel</span>
+                <span>Sambo Hall</span>
               </div>
             </div>
             
