@@ -21,7 +21,7 @@ const Ticket = () => {
   const qrCodeValue = JSON.stringify({
     userId: user.id,
     name: user.name,
-    matricNumber: user.matric_number,
+    matricNumber: user.matric_number || "",
     tableType: user.ticket.table_type,
     tableNumber: user.ticket.table_number,
     seatNumber: user.ticket.seat_number
